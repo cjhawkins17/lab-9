@@ -1,14 +1,18 @@
 ---
 title: "Lab 9: Data Simulation Exploration"
-author: "Your name here!"
+author: "Christopher Hawkins"
 format: html
 editor: source
 embed-resources: true
+code-tools: true
+code-fold: true
 ---
 
 ```{r}
 #| label: setup
+#| message: false
 
+library(tidyverse)
 
 ```
 
@@ -33,13 +37,20 @@ for it to be compatible with `map_int()`!
 ```{r}
 #| label: function-simulation-for-random-babies
 
-randomBabies <- function(nBabies){
-  ...
+randomBabies <- function(nBabies) {
+  # Create a vector representing the parents
+  parents <- 1:nBabies
+  
+  # Shuffle the babies randomly
+  babies <- sample(parents)
+  
+  # Count how many babies are correctly returned
+  sum(parents == babies)
 }
 
+# Use map_int() to simulate 10,000 times
 results <- map_int(.x = 1:10000,
-                   .f = ___
-                   )
+                   .f = ~ randomBabies(nBabies = 4))
 ```
 
 **2. Create a table displaying the proportion of simulations where 0, 1, 2, 3, and 4 babies were given to their correct parent(s).** Hint: A `pivot_wider()` will be helpful here!
@@ -63,7 +74,12 @@ enframe(results,
 ```{r}
 #| label: table-for-random-babies
 
-
+results_df <- enframe(results, 
+        name = "simulation_number", 
+        value = "ncorrect") |>
+  count(ncorrect, name = "count") |>
+  mutate(proportion = count / sum(count))
+results_df
 ```
 
 **3. Now create a barplot showing the proportion of simulations where 0, 1, 2, 3, and 4 babies were given to their correct parent(s).** 
@@ -83,6 +99,19 @@ geom_bar(mapping = aes(y = after_stat(count) / sum(after_stat(count))
 ```{r}
 #| label: visualization-for-random-babies
 
+results_df |> 
+  ggplot(mapping = aes(x = as.factor(ncorrect), y = proportion)) +  # Map precomputed proportions
+  geom_bar(
+    stat = "identity",  # Use the actual y-values from the data
+    fill = "skyblue",
+    color = "black"
+  ) +
+  labs(
+    title = "Proportion of Simulations by Correct Assignments",
+    x = "Number of Correct Assignments",
+    y = "Proportion"
+  ) +
+  theme_minimal()
 ```
 
 ## Central Limit Theorem -- Optional & Somewhat Spicy
@@ -115,8 +144,8 @@ I've provided some skeleton code to get you started. :)
 
 ```{r}
 simulate_means <- function(n, df){
-  map_dbl(.x = ___, 
-          .f = ~rchisq(n = 100, ___) %>% mean()
+  map_dbl(.x = 1:n, 
+          .f = ~ rchisq(n = 100, df = df) %>% mean()
           )
 }
 ```
@@ -127,8 +156,8 @@ simulate_means <- function(n, df){
 -  **`df` = 10**
 
 ```{r}
-grid <- crossing(n = ___, 
-                 df = 5)
+grid <- crossing(n = c(10, 100, 1000, 10000), 
+                 df = 10)
 ```
 
 **6. Now, use a `p_map()` to create a new column of simulated means (using the `simulate_means()` function), for every value in your `grid`.**
@@ -140,10 +169,10 @@ You will want to use the `unnest()` function to extract the results of the
 
 ```{r}
 all_simulations <- grid |> 
-  mutate(simulated_means = pmap(.l = list(___), 
+  mutate(simulated_means = pmap(.l = list(n = n, df = df), 
                                 .f = simulate_means)
          ) |> 
-  unnest(___) 
+  unnest(simulated_means) 
 
 ```
 
@@ -153,7 +182,17 @@ Hint: Make sure your columns have descriptive names!
 ```{r}
 #| label: table-of-simulated Means
 
-
+all_simulations |>
+  group_by(n) |>
+  summarise(Mean = mean(simulated_means),
+            .groups = 'drop') |>
+  pivot_wider(id_cols = everything(),
+              names_from = n,
+              values_from = Mean) |>
+  rename('Simulated Means = 10' = '10',
+         'Simulated Means = 100' = '100',
+         'Simulated Means = 1000' = '1000',
+         'Simulated Means = 10000' = '10000')
 ```
 
 **8. Create a plot showing the distribution of simulated means from each of the simulations. Each simulation (10, 100, 1000, and 10000) should be its own facet!**
@@ -166,7 +205,19 @@ sizes between the simulations.
 ```{r}
 #| label: plot-of-simulated Means
 
-
+all_simulations |>
+  mutate(n = case_when(
+    n == 10 ~ 'Simulated mean = 10',
+    n == 100 ~ 'Simulated mean = 100',
+    n == 1000 ~ 'Simulated mean = 1000',
+    n == 10000 ~ 'Simulated mean = 10000'
+  )) |>
+  ggplot(aes(x = simulated_means)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ factor(n), scales = "free_y") +
+  theme_minimal() +
+  scale_x_continuous(name = "Simulated Means") +
+  labs(title = "Distribution of Simulated Means for Different Sample Sizes")
 ```
 
 ## Challenge 9
